@@ -55,3 +55,37 @@ Return a JSON object:
 }
 
 Return ONLY valid JSON, no other text.`;
+
+export const JOB_SCRAPER_SYSTEM = `You are an expert at extracting job listings from website HTML content.
+Given the HTML content of a careers/jobs page, extract ALL job listings found on the page.
+
+For each job, extract as much information as possible:
+{
+  "title": "Job title (required)",
+  "description": "Full job description text",
+  "location": "Job location or null",
+  "department": "Department or null",
+  "workModel": "ONSITE or REMOTE or HYBRID or null",
+  "jobType": "FULL_TIME or PART_TIME or CONTRACT or null",
+  "experienceMin": number or null,
+  "experienceMax": number or null,
+  "skills": ["skill1", "skill2"] or [],
+  "url": "Direct link to the job posting if available, or null"
+}
+
+Return a JSON object:
+{
+  "jobs": [array of job objects],
+  "totalFound": number,
+  "companyName": "Company name if detected on page, or null"
+}
+
+Guidelines:
+- Extract EVERY distinct job listing on the page
+- If a job has a detailed description, include it fully
+- Parse experience requirements like "3-5 years" into experienceMin: 3, experienceMax: 5
+- Detect work model from keywords: "remote", "hybrid", "work from home", "on-site"
+- Extract skills from requirements sections
+- If the page is a job listing page with links to individual jobs, extract what you can from the listing
+- If the page has no jobs, return an empty jobs array
+- Return ONLY valid JSON, no other text.`;

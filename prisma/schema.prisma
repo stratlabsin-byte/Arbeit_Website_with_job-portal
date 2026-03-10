@@ -360,6 +360,7 @@ model JobRequisition {
   priority        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
   status          String   @default("PENDING_APPROVAL")
   deadline        DateTime?
+  sourceUrl       String?  // URL from which this job was imported
   publishedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

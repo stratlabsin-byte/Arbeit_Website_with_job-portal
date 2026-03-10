@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileText, Plus, Search, Building2, Users, ChevronRight, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Plus, Search, Building2, Users, ChevronRight, Clock, CheckCircle2, XCircle, Globe } from "lucide-react";
 import { REQUISITION_STATUSES } from "@/types";
 
 interface Requisition {
@@ -71,13 +71,22 @@ export default function RequisitionsPage() {
           <h1 className="text-2xl font-bold text-[#0A102F]">Requisitions</h1>
           <p className="text-gray-500 text-sm mt-1">{total} total requisitions</p>
         </div>
-        <Link
-          href="/talent/requisitions/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#3147FF] text-white rounded-lg text-sm font-medium hover:bg-[#2a3de6] transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Requisition
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/talent/requisitions/import"
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <Globe className="w-4 h-4" />
+            Import from Website
+          </Link>
+          <Link
+            href="/talent/requisitions/new"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#3147FF] text-white rounded-lg text-sm font-medium hover:bg-[#2a3de6] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Requisition
+          </Link>
+        </div>
       </div>
 
       {/* Pending Approval Banner */}
