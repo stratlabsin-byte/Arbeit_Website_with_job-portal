@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,12 +15,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -47,17 +47,8 @@ model VerificationToken {
 }
 
 // ==================== USERS ====================
-
-enum UserRole {
-  JOB_SEEKER
-  EMPLOYER
-  ADMIN
-}
-
-enum WorkStatus {
-  FRESHER
-  EXPERIENCED
-}
+// UserRole: JOB_SEEKER, EMPLOYER, ADMIN, RECRUITER, CLIENT_USER, CANDIDATE
+// WorkStatus: FRESHER, EXPERIENCED
 
 model User {
   id             String      @id @default(cuid())
@@ -67,16 +58,26 @@ model User {
   image          String?
   hashedPassword String?
   phone          String?
-  role           UserRole    @default(JOB_SEEKER)
+  role           String      @default("JOB_SEEKER")
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
+  // Existing relations
   accounts     Account[]
   sessions     Session[]
   profile      JobSeekerProfile?
   company      Company?
   applications Application[]
   savedJobs    SavedJob[]
+
+  // Talent Portal relations
+  recruiterProfile  RecruiterProfile?
+  clientUserProfile ClientUserProfile?
+  candidateProfile  CandidateProfile?
+  notifications     Notification[]
+  auditLogs         AuditLog[]        @relation("AuditActor")
+  reviewComments    ReviewComment[]
+  interviewsCreated Interview[]       @relation("InterviewCreator")
 
   @@index([email])
   @@index([role])
@@ -85,26 +86,26 @@ model User {
 // ==================== JOB SEEKER ====================
 
 model JobSeekerProfile {
-  id              String     @id @default(cuid())
-  userId          String     @unique
-  headline        String?    @db.VarChar(200)
-  summary         String?    @db.Text
-  workStatus      WorkStatus @default(FRESHER)
-  experienceYears Int        @default(0)
-  currentSalary   Decimal?   @db.Decimal(12, 2)
-  expectedSalary  Decimal?   @db.Decimal(12, 2)
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  headline        String?
+  summary         String?
+  workStatus      String   @default("FRESHER")
+  experienceYears Int      @default(0)
+  currentSalary   Decimal?
+  expectedSalary  Decimal?
   resumeUrl       String?
   resumeName      String?
   location        String?
-  skills          String?    @db.Text // JSON array of skills
-  education       String?    @db.Text // JSON array of education entries
-  experience      String?    @db.Text // JSON array of experience entries
-  languages       String?    @db.Text
+  skills          String? // JSON array of skills
+  education       String? // JSON array of education entries
+  experience      String? // JSON array of experience entries
+  languages       String?
   linkedinUrl     String?
   portfolioUrl    String?
   noticePeriod    String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -118,12 +119,12 @@ model Company {
   slug        String  @unique
   logo        String?
   website     String?
-  description String? @db.Text
+  description String?
   industry    String?
-  size        String? // e.g., "1-10", "11-50", "51-200", "201-500", "500+"
+  size        String?
   founded     String?
   location    String?
-  address     String? @db.Text
+  address     String?
   phone       String?
   email       String?
   linkedin    String?
@@ -139,67 +140,46 @@ model Company {
 }
 
 // ==================== JOBS ====================
-
-enum JobType {
-  FULL_TIME
-  PART_TIME
-  CONTRACT
-  TEMPORARY
-  INTERNSHIP
-  FREELANCE
-}
-
-enum JobStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  CLOSED
-  EXPIRED
-}
-
-enum ExperienceLevel {
-  ENTRY
-  JUNIOR
-  MID
-  SENIOR
-  LEAD
-  EXECUTIVE
-}
+// JobType: FULL_TIME, PART_TIME, CONTRACT, TEMPORARY, INTERNSHIP, FREELANCE
+// JobStatus: DRAFT, ACTIVE, PAUSED, CLOSED, EXPIRED
+// ExperienceLevel: ENTRY, JUNIOR, MID, SENIOR, LEAD, EXECUTIVE
 
 model Job {
-  id               String          @id @default(cuid())
+  id               String   @id @default(cuid())
   companyId        String
   title            String
-  slug             String          @unique
-  description      String          @db.Text
-  requirements     String?         @db.Text
-  responsibilities String?         @db.Text
-  skills           String?         @db.Text // JSON array
-  jobType          JobType         @default(FULL_TIME)
-  experienceLevel  ExperienceLevel @default(ENTRY)
-  experienceMin    Int             @default(0)
+  slug             String   @unique
+  description      String
+  requirements     String?
+  responsibilities String?
+  skills           String? // JSON array
+  jobType          String   @default("FULL_TIME")
+  experienceLevel  String   @default("ENTRY")
+  experienceMin    Int      @default(0)
   experienceMax    Int?
-  salaryMin        Decimal?        @db.Decimal(12, 2)
-  salaryMax        Decimal?        @db.Decimal(12, 2)
-  salaryCurrency   String          @default("INR")
-  showSalary       Boolean         @default(true)
+  salaryMin        Decimal?
+  salaryMax        Decimal?
+  salaryCurrency   String   @default("INR")
+  showSalary       Boolean  @default(true)
   location         String
-  isRemote         Boolean         @default(false)
+  isRemote         Boolean  @default(false)
   industry         String
   department       String?
-  vacancies        Int             @default(1)
-  status           JobStatus       @default(DRAFT)
-  featured         Boolean         @default(false)
-  views            Int             @default(0)
-  applicationCount Int             @default(0)
+  vacancies        Int      @default(1)
+  status           String   @default("DRAFT")
+  featured         Boolean  @default(false)
+  views            Int      @default(0)
+  applicationCount Int      @default(0)
   deadline         DateTime?
   postedAt         DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  requisitionId    String?  @unique // Links to JobRequisition if published from talent portal
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   applications Application[]
   savedBy      SavedJob[]
+  requisition  JobRequisition?  @relation(fields: [requisitionId], references: [id])
 
   @@index([companyId])
   @@index([status])
@@ -211,28 +191,18 @@ model Job {
 }
 
 // ==================== APPLICATIONS ====================
-
-enum ApplicationStatus {
-  APPLIED
-  VIEWED
-  SHORTLISTED
-  INTERVIEW
-  OFFERED
-  HIRED
-  REJECTED
-  WITHDRAWN
-}
+// ApplicationStatus: APPLIED, VIEWED, SHORTLISTED, INTERVIEW, OFFERED, HIRED, REJECTED, WITHDRAWN
 
 model Application {
-  id          String            @id @default(cuid())
+  id          String   @id @default(cuid())
   jobId       String
   userId      String
-  coverLetter String?           @db.Text
+  coverLetter String?
   resumeUrl   String?
-  status      ApplicationStatus @default(APPLIED)
-  notes       String?           @db.Text // Employer notes
-  appliedAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  status      String   @default("APPLIED")
+  notes       String? // Employer notes
+  appliedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -257,6 +227,17 @@ model SavedJob {
   @@index([jobId])
 }
 
+// ==================== SITE CONTENT (CMS) ====================
+
+model SiteContent {
+  id        String   @id @default(cuid())
+  section   String   @unique  // e.g. "hero", "stats", "services", "about", "industries"
+  content   String   // JSON string of the section data
+  updatedAt DateTime @updatedAt
+
+  @@index([section])
+}
+
 // ==================== CONTACT & INQUIRIES ====================
 
 model ContactInquiry {
@@ -267,8 +248,310 @@ model ContactInquiry {
   phone       String?
   jobTitle    String?
   company     String?
-  message     String   @db.Text
-  type        String   @default("contact") // contact, recruitment, contracting
+  message     String
+  type        String   @default("contact")
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+// ==================== TALENT PORTAL: CLIENTS ====================
+
+model Client {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  industry     String?
+  website      String?
+  logo         String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  address      String?
+  city         String?
+  state        String?
+  notes        String?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  requisitions JobRequisition[]
+  clientUsers  ClientUserProfile[]
+  clientRoles  ClientRole[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+// ==================== TALENT PORTAL: RECRUITER ====================
+
+model RecruiterProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  employeeId  String?  @unique
+  department  String?
+  designation String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments RequisitionAssignment[]
+}
+
+// ==================== TALENT PORTAL: CLIENT USER ====================
+
+model ClientUserProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  clientId     String
+  clientRoleId String?
+  designation  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientRole ClientRole? @relation(fields: [clientRoleId], references: [id])
+
+  @@index([clientId])
+}
+
+// ==================== TALENT PORTAL: RBAC ====================
+
+model ClientRole {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  description String?
+  permissions String   // JSON array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientUsers ClientUserProfile[]
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+// ==================== TALENT PORTAL: JOB REQUISITIONS ====================
+// RequisitionStatus: PENDING_APPROVAL, APPROVED, PUBLISHED, ON_HOLD, CLOSED, FILLED
+
+model JobRequisition {
+  id              String   @id @default(cuid())
+  clientId        String
+  title           String
+  rawJd           String?  // Original JD from client
+  polishedJd      String?  // AI-polished professional JD
+  description     String?
+  department      String?
+  location        String?
+  city            String?
+  workModel       String   @default("ONSITE") // ONSITE, HYBRID, REMOTE
+  jobType         String   @default("FULL_TIME")
+  experienceMin   Int      @default(0)
+  experienceMax   Int?
+  ctcMin          Decimal?
+  ctcMax          Decimal?
+  ctcCurrency     String   @default("INR")
+  noticePeriod    String?  // e.g. "30 days", "Immediate"
+  requiredSkills  String?  // JSON array
+  preferredSkills String?  // JSON array
+  vacancies       Int      @default(1)
+  priority        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status          String   @default("PENDING_APPROVAL")
+  deadline        DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client      Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignments RequisitionAssignment[]
+  candidates  CandidateRequisition[]
+  job         Job?                   // Published job on the board
+
+  @@index([clientId])
+  @@index([status])
+  @@index([priority])
+}
+
+model RequisitionAssignment {
+  id            String   @id @default(cuid())
+  requisitionId String
+  recruiterId   String
+  assignedAt    DateTime @default(now())
+
+  requisition JobRequisition   @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  recruiter   RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([requisitionId, recruiterId])
+  @@index([recruiterId])
+}
+
+// ==================== TALENT PORTAL: CANDIDATES ====================
+
+model CandidateProfile {
+  id              String   @id @default(cuid())
+  userId          String?  @unique // Optional: linked if candidate has a portal account
+  name            String
+  email           String?
+  phone           String?
+  location        String?
+  currentCompany  String?
+  currentRole     String?
+  experienceYears Int      @default(0)
+  currentCtc      String?
+  expectedCtc     String?
+  noticePeriod    String?
+  skills          String?  // JSON array
+  linkedinUrl     String?
+  source          String?  // PORTAL, LINKEDIN, REFERRAL, UPLOAD
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User?              @relation(fields: [userId], references: [id])
+  cvVersions   CvVersion[]
+  requisitions CandidateRequisition[]
+  interviews   Interview[]
+
+  @@index([email])
+}
+
+// ==================== TALENT PORTAL: CV MANAGEMENT ====================
+// ParseStatus: PENDING, PARSING, PARSED, FAILED
+
+model CvVersion {
+  id              String   @id @default(cuid())
+  candidateId     String
+  fileName        String
+  fileUrl         String
+  fileType        String   // PDF, DOCX
+  fileSize        Int
+  isActive        Boolean  @default(false)
+  version         Int      @default(1)
+  parsedData      String?  // JSON: extracted skills, experience, education
+  parseStatus     String   @default("PENDING")
+  fitScores       String?  // JSON: { requisitionId: score }
+  cvTextOriginal  String?  // Full extracted text
+  cvTextRedacted  String?  // Phone & email redacted
+  uploadedAt      DateTime @default(now())
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([isActive])
+}
+
+// ==================== TALENT PORTAL: SCREENING PIPELINE ====================
+// Stage: SHORTLISTED, PIPELINE, REJECTED, PUSHED_TO_CLIENT, CLIENT_APPROVED, CLIENT_REJECTED, SELECTED
+
+model CandidateRequisition {
+  id            String   @id @default(cuid())
+  candidateId   String
+  requisitionId String
+  stage         String   @default("PIPELINE") // SHORTLISTED, PIPELINE, REJECTED, PUSHED_TO_CLIENT, CLIENT_APPROVED, CLIENT_REJECTED, SELECTED
+  fitScore      Int?     // 0-100
+  cvVersionId   String?  // Which CV version was submitted
+  applicationId String?  // Links to Application if candidate came from job board
+  pushedAt      DateTime? // When pushed to client
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  candidate      CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  requisition    JobRequisition   @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  reviewComments ReviewComment[]
+  interviews     Interview[]
+
+  @@unique([candidateId, requisitionId])
+  @@index([requisitionId])
+  @@index([stage])
+}
+
+model ReviewComment {
+  id                     String   @id @default(cuid())
+  candidateRequisitionId String
+  authorId               String
+  action                 String   // SHORTLIST, PIPELINE, REJECT, COMMENT, PUSH_TO_CLIENT, CLIENT_APPROVE, CLIENT_REJECT
+  comment                String?
+  stageAtTime            String   // Stage when comment was made
+  createdAt              DateTime @default(now())
+
+  candidateRequisition CandidateRequisition @relation(fields: [candidateRequisitionId], references: [id], onDelete: Cascade)
+  author               User                 @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([candidateRequisitionId])
+}
+
+// ==================== TALENT PORTAL: INTERVIEWS ====================
+// InterviewStatus: SLOTS_PROPOSED, SENT_TO_CANDIDATE, BOOKED, COMPLETED, CANCELLED, NO_SHOW, PASSED, FAILED
+
+model Interview {
+  id                     String    @id @default(cuid())
+  candidateRequisitionId String
+  candidateId            String
+  round                  Int       @default(1) // 1-10
+  roundName              String?   // e.g. "Technical Round", "HR Round"
+  mode                   String    @default("VIDEO") // VIDEO, PHONE, ONSITE
+  status                 String    @default("SLOTS_PROPOSED")
+  proposedSlots          String?   // JSON array of { slotId, startTime, endTime }
+  bookedSlotId           String?
+  bookedAt               DateTime?
+  scheduledStart         DateTime?
+  scheduledEnd           DateTime?
+  duration               Int       @default(60) // minutes
+  meetingLink            String?
+  location               String?
+  interviewerName        String?
+  interviewerEmail       String?
+  instructions           String?
+  feedback               String?
+  rating                 Int?      // 1-5
+  noShowBy               String?   // CANDIDATE or INTERVIEWER
+  moreRoundsNeeded       Boolean?
+  createdById            String
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  candidateRequisition CandidateRequisition @relation(fields: [candidateRequisitionId], references: [id], onDelete: Cascade)
+  candidate            CandidateProfile     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  createdBy            User                 @relation("InterviewCreator", fields: [createdById], references: [id])
+
+  @@index([candidateRequisitionId])
+  @@index([candidateId])
+  @@index([status])
+}
+
+// ==================== TALENT PORTAL: NOTIFICATIONS ====================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, INTERVIEW, STAGE_CHANGE, ASSIGNMENT, JD_SUBMITTED
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ==================== TALENT PORTAL: AUDIT LOG ====================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String   // e.g. STAGE_CHANGE, CV_UPLOAD, INTERVIEW_SCHEDULE, JD_SUBMIT, REQUISITION_APPROVE
+  entityType String   // e.g. CandidateRequisition, Interview, CvVersion, JobRequisition
+  entityId   String
+  details    String?  // JSON of changed fields
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }

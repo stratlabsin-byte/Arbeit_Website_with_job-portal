@@ -10,16 +10,17 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          300: "#93c5fd",
-          400: "#60a5fa",
-          500: "#2563eb",
-          600: "#1d4ed8",
-          700: "#1e40af",
-          800: "#1e3a8a",
-          900: "#172554",
+          50: "#eef1ff",
+          100: "#dde4ff",
+          200: "#bcc9ff",
+          300: "#8fa3ff",
+          400: "#6078ff",
+          500: "#3147FF",
+          600: "#3147FF",
+          700: "#2a3de6",
+          800: "#1e2eb3",
+          900: "#172380",
+          950: "#0f1a4d",
         },
         accent: {
           50: "#f0fdf4",
@@ -32,6 +33,15 @@ const config: Config = {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         heading: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        "soft": "0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)",
+        "elevated": "0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 2px 10px -2px rgba(0, 0, 0, 0.04)",
+        "glow": "0 0 30px rgba(49, 71, 255, 0.15)",
+        "glow-lg": "0 0 60px rgba(49, 71, 255, 0.2)",
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
       },
     },
   },

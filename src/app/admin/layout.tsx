@@ -13,10 +13,12 @@ import {
   BarChart3,
   Settings,
   Shield,
+  FileEdit,
 } from "lucide-react";
 
 const sidebarItems = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
+  { label: "Website Content", href: "/admin/content", icon: FileEdit },
   { label: "Jobs", href: "/admin/jobs", icon: Briefcase },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Companies", href: "/admin/companies", icon: Building2 },

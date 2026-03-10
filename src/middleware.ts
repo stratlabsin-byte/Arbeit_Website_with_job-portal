@@ -21,6 +21,23 @@ export default withAuth(
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
+    // Protect talent portal: client user routes
+    if (pathname.startsWith("/talent/client") && token?.role !== "CLIENT_USER" && token?.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
+    }
+
+    // Protect talent portal: candidate routes
+    if (pathname.startsWith("/talent/candidate") && token?.role !== "CANDIDATE" && token?.role !== "JOB_SEEKER" && token?.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
+    }
+
+    // Protect talent portal: recruiter routes (everything under /talent not already matched above)
+    if (pathname.startsWith("/talent") && !pathname.startsWith("/talent/client") && !pathname.startsWith("/talent/candidate")) {
+      if (token?.role !== "RECRUITER" && token?.role !== "ADMIN") {
+        return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
+      }
+    }
+
     return NextResponse.next();
   },
   {
@@ -42,6 +59,10 @@ export default withAuth(
           pathname.startsWith("/api/auth") ||
           pathname.startsWith("/api/jobs") ||
           pathname.startsWith("/api/contact") ||
+          pathname.startsWith("/api/content") ||
+          pathname.startsWith("/HR-Advisory") ||
+          pathname.startsWith("/Payroll-Compliance") ||
+          pathname.startsWith("/p/") ||
           pathname.startsWith("/_next") ||
           pathname.startsWith("/images") ||
           pathname.startsWith("/icons") ||

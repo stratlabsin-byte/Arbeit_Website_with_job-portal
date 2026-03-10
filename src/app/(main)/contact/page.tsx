@@ -15,6 +15,7 @@ import {
   Loader2,
   Send,
 } from "lucide-react";
+import { useCmsContent } from "@/hooks/useCmsContent";
 
 // Metadata must be in a separate file for client components or set via generateMetadata in layout
 // Export is handled by the parent layout or a separate metadata file
@@ -50,44 +51,47 @@ const contactSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
-const contactDetails = [
-  {
-    icon: MapPin,
-    label: "Office Address",
-    value: "B-231, First Floor, Greater Kailash-1, New Delhi 110048",
-    href: "https://maps.google.com/?q=B-231,+Greater+Kailash-1,+New+Delhi+110048",
-  },
-  {
-    icon: Phone,
-    label: "Phone",
-    value: "011-45092961",
-    href: "tel:01145092961",
-  },
-  {
-    icon: Mail,
-    label: "Email",
-    value: "info@arbeit.co.in",
-    href: "mailto:info@arbeit.co.in",
-  },
-  {
-    icon: Globe,
-    label: "Website",
-    value: "www.arbeit.co.in",
-    href: "https://www.arbeit.co.in",
-  },
-];
+const defaultContactCms = {
+  heroHeading: "Contact Us",
+  heroSubtitle: "Get in touch with our team. We'd love to hear from you and discuss how we can help.",
+  heroImage: "",
+  formHeading: "Send Us a Message",
+  formSubtitle: "Fill out the form below and we'll get back to you within 24 hours.",
+  sidebarHeading: "Get in Touch",
+  sidebarSubtitle: "Reach out to us through any of the following channels.",
+  address: "B-231, First Floor, Greater Kailash-1, New Delhi 110048",
+  addressLink: "https://maps.google.com/?q=B-231,+Greater+Kailash-1,+New+Delhi+110048",
+  phone: "011-45092961",
+  phoneLink: "tel:01145092961",
+  email: "info@arbeit.co.in",
+  emailLink: "mailto:info@arbeit.co.in",
+  website: "www.arbeit.co.in",
+  websiteLink: "https://www.arbeit.co.in",
+  officeHours: [
+    { day: "Monday - Friday", hours: "9:00 AM - 6:00 PM" },
+    { day: "Saturday", hours: "10:00 AM - 2:00 PM" },
+    { day: "Sunday", hours: "Closed" },
+  ],
+  mapEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.7775610984244!2d77.2310508!3d28.5494305!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390ce3e564dafffb%3A0x3c1745429aa2b85c!2sGreater%20Kailash%20I%2C%20New%20Delhi%2C%20Delhi%20110048!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin",
+};
 
-const officeHours = [
-  { day: "Monday - Friday", hours: "9:00 AM - 6:00 PM" },
-  { day: "Saturday", hours: "10:00 AM - 2:00 PM" },
-  { day: "Sunday", hours: "Closed" },
-];
+const iconMap = { MapPin, Phone, Mail, Globe };
+
 
 export default function ContactPage() {
+  const cms = useCmsContent<any>("contactPage", defaultContactCms);
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const contactDetails = [
+    { iconKey: "MapPin", label: "Office Address", value: cms.address || defaultContactCms.address, href: cms.addressLink || defaultContactCms.addressLink, external: true },
+    { iconKey: "Phone", label: "Phone", value: cms.phone || defaultContactCms.phone, href: cms.phoneLink || defaultContactCms.phoneLink, external: false },
+    { iconKey: "Mail", label: "Email", value: cms.email || defaultContactCms.email, href: cms.emailLink || defaultContactCms.emailLink, external: false },
+    { iconKey: "Globe", label: "Website", value: cms.website || defaultContactCms.website, href: cms.websiteLink || defaultContactCms.websiteLink, external: true },
+  ];
+  const officeHours = cms.officeHours || defaultContactCms.officeHours;
 
   const {
     register,
@@ -97,6 +101,20 @@ export default function ContactPage() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
   });
+
+  if (cms.pageHidden) {
+    return (
+      <section className="py-32 text-center">
+        <div className="container-main">
+          <h1 className="text-3xl font-bold text-gray-900">Page Not Available</h1>
+          <p className="mt-4 text-gray-600">This page is currently unavailable. Please check back later.</p>
+          <a href="/" className="mt-8 inline-block px-6 py-3 bg-[#3147FF] text-white rounded-lg font-semibold hover:bg-[#2a3de6] transition-colors">
+            Go to Homepage
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   const onSubmit = async (data: ContactFormData) => {
     setSubmitStatus("loading");
@@ -129,13 +147,13 @@ export default function ContactPage() {
       {/* Hero Banner */}
       <section className="relative bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 py-24 sm:py-32">
         <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
+        {cms.heroImage && <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${cms.heroImage})` }} />}
         <div className="container-main relative z-10 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Contact Us
+            {cms.heroHeading || "Contact Us"}
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-            Get in touch with our team. We&apos;d love to hear from you and
-            discuss how we can help.
+            {cms.heroSubtitle || "Get in touch with our team. We'd love to hear from you and discuss how we can help."}
           </p>
         </div>
       </section>
@@ -146,10 +164,9 @@ export default function ContactPage() {
           <div className="grid gap-12 lg:grid-cols-5">
             {/* Form */}
             <div className="lg:col-span-3">
-              <h2 className="section-heading text-left">Send Us a Message</h2>
+              <h2 className="section-heading text-left">{cms.formHeading || "Send Us a Message"}</h2>
               <p className="mt-2 text-gray-600">
-                Fill out the form below and we&apos;ll get back to you within 24
-                hours.
+                {cms.formSubtitle || "Fill out the form below and we'll get back to you within 24 hours."}
               </p>
 
               {submitStatus === "success" && (
@@ -370,33 +387,36 @@ export default function ContactPage() {
 
             {/* Contact Details */}
             <div className="lg:col-span-2">
-              <h2 className="section-heading text-left">Get in Touch</h2>
+              <h2 className="section-heading text-left">{cms.sidebarHeading || "Get in Touch"}</h2>
               <p className="mt-2 text-gray-600">
-                Reach out to us through any of the following channels.
+                {cms.sidebarSubtitle || "Reach out to us through any of the following channels."}
               </p>
 
               <div className="mt-8 space-y-6">
-                {contactDetails.map((detail) => (
-                  <a
-                    key={detail.label}
-                    href={detail.href}
-                    target={detail.icon === MapPin || detail.icon === Globe ? "_blank" : undefined}
-                    rel={detail.icon === MapPin || detail.icon === Globe ? "noopener noreferrer" : undefined}
-                    className="flex items-start gap-4 group"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 group-hover:bg-blue-700 group-hover:text-white transition-colors">
-                      <detail.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">
-                        {detail.label}
-                      </p>
-                      <p className="mt-1 text-gray-900 group-hover:text-blue-700 transition-colors">
-                        {detail.value}
-                      </p>
-                    </div>
-                  </a>
-                ))}
+                {contactDetails.map((detail: any) => {
+                  const Icon = iconMap[detail.iconKey as keyof typeof iconMap] || MapPin;
+                  return (
+                    <a
+                      key={detail.label}
+                      href={detail.href}
+                      target={detail.external ? "_blank" : undefined}
+                      rel={detail.external ? "noopener noreferrer" : undefined}
+                      className="flex items-start gap-4 group"
+                    >
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 group-hover:bg-blue-700 group-hover:text-white transition-colors">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">
+                          {detail.label}
+                        </p>
+                        <p className="mt-1 text-gray-900 group-hover:text-blue-700 transition-colors">
+                          {detail.value}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
 
               {/* Office Hours */}
@@ -408,7 +428,7 @@ export default function ContactPage() {
                   </h3>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {officeHours.map((schedule) => (
+                  {officeHours.map((schedule: any) => (
                     <div
                       key={schedule.day}
                       className="flex justify-between text-sm"
@@ -435,7 +455,7 @@ export default function ContactPage() {
                 </h3>
                 <div className="overflow-hidden rounded-xl border border-gray-200">
                   <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3504.7775610984244!2d77.2310508!3d28.5494305!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390ce3e564dafffb%3A0x3c1745429aa2b85c!2sGreater%20Kailash%20I%2C%20New%20Delhi%2C%20Delhi%20110048!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
+                    src={cms.mapEmbedUrl || defaultContactCms.mapEmbedUrl}
                     width="100%"
                     height="300"
                     style={{ border: 0 }}

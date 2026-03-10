@@ -1,4 +1,58 @@
-import { UserRole } from "@prisma/client";
+// User roles
+export type UserRole = "JOB_SEEKER" | "EMPLOYER" | "ADMIN" | "RECRUITER" | "CLIENT_USER" | "CANDIDATE";
+
+export const USER_ROLES = {
+  JOB_SEEKER: "JOB_SEEKER",
+  EMPLOYER: "EMPLOYER",
+  ADMIN: "ADMIN",
+  RECRUITER: "RECRUITER",
+  CLIENT_USER: "CLIENT_USER",
+  CANDIDATE: "CANDIDATE",
+} as const;
+
+// Talent portal constants
+export const SCREENING_STAGES = {
+  PIPELINE: "PIPELINE",
+  SHORTLISTED: "SHORTLISTED",
+  REJECTED: "REJECTED",
+  PUSHED_TO_CLIENT: "PUSHED_TO_CLIENT",
+  CLIENT_APPROVED: "CLIENT_APPROVED",
+  CLIENT_REJECTED: "CLIENT_REJECTED",
+  SELECTED: "SELECTED",
+} as const;
+
+export const REQUISITION_STATUSES = {
+  PENDING_APPROVAL: "PENDING_APPROVAL",
+  APPROVED: "APPROVED",
+  PUBLISHED: "PUBLISHED",
+  ON_HOLD: "ON_HOLD",
+  CLOSED: "CLOSED",
+  FILLED: "FILLED",
+} as const;
+
+export const INTERVIEW_STATUSES = {
+  SLOTS_PROPOSED: "SLOTS_PROPOSED",
+  SENT_TO_CANDIDATE: "SENT_TO_CANDIDATE",
+  BOOKED: "BOOKED",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+  NO_SHOW: "NO_SHOW",
+  PASSED: "PASSED",
+  FAILED: "FAILED",
+} as const;
+
+export const WORK_MODELS = [
+  { value: "ONSITE", label: "Onsite" },
+  { value: "HYBRID", label: "Hybrid" },
+  { value: "REMOTE", label: "Remote" },
+] as const;
+
+export const REQUISITION_PRIORITIES = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "URGENT", label: "Urgent" },
+] as const;
 
 // Extend NextAuth types
 declare module "next-auth" {
