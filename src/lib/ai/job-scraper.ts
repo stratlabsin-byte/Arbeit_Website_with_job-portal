@@ -1,4 +1,4 @@
-import { getOpenAI } from "./openai";
+import { getAnthropic, extractJson } from "./anthropic";
 import { JOB_SCRAPER_SYSTEM } from "./prompts";
 
 export interface ScrapedJob {
@@ -112,25 +112,51 @@ async function tryFetchJsonJobs(
 
     if (!Array.isArray(jobsArray) || jobsArray.length === 0) return null;
 
-    // Use AI to normalize the JSON into our ScrapedJob format
-    const openai = getOpenAI();
-    const jsonStr = JSON.stringify(jobsArray).substring(0, 30000);
+    // Pre-process: combine description sections into a single full description
+    const preprocessed = jobsArray
+      .filter((j: any) => {
+        const status = (j.status || "").toLowerCase();
+        return !status || status === "active" || status === "open";
+      })
+      .map((j: any) => {
+        // Build a complete description from all available sections
+        const parts: string[] = [];
+        if (j.description) parts.push(j.description);
+        if (Array.isArray(j.responsibilities) && j.responsibilities.length > 0) {
+          parts.push("\n\nResponsibilities:\n" + j.responsibilities.map((r: string) => `- ${r}`).join("\n"));
+        }
+        if (Array.isArray(j.requirements) && j.requirements.length > 0) {
+          parts.push("\n\nRequirements:\n" + j.requirements.map((r: string) => `- ${r}`).join("\n"));
+        }
+        if (Array.isArray(j.niceToHave) && j.niceToHave.length > 0) {
+          parts.push("\n\nNice to Have:\n" + j.niceToHave.map((r: string) => `- ${r}`).join("\n"));
+        }
+        if (Array.isArray(j.education) && j.education.length > 0) {
+          parts.push("\n\nEducation:\n" + j.education.map((r: string) => `- ${r}`).join("\n"));
+        }
+        return { ...j, fullDescription: parts.join("") };
+      });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    if (preprocessed.length === 0) return null;
+
+    // Use AI to normalize the JSON into our ScrapedJob format
+    const anthropic = getAnthropic();
+    const jsonStr = JSON.stringify(preprocessed).substring(0, 50000);
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 8000,
+      system: JOB_SCRAPER_SYSTEM,
       messages: [
-        { role: "system", content: JOB_SCRAPER_SYSTEM },
         {
           role: "user",
-          content: `Source URL: ${baseUrl}\n\nThis is raw JSON job data fetched from ${fullUrl}. Extract all job listings (only include jobs with status "active" or no status field — skip closed/inactive jobs):\n\n${jsonStr}`,
+          content: `Source URL: ${baseUrl}\n\nThis is raw JSON job data fetched from ${fullUrl}. Extract all job listings. IMPORTANT: Use the "fullDescription" field as the complete job description — do NOT truncate or summarize it:\n\n${jsonStr}`,
         },
       ],
       temperature: 0.1,
-      response_format: { type: "json_object" },
-      max_tokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = extractJson(response.content);
     if (!content) return null;
 
     const result = JSON.parse(content) as ScrapeResult;
@@ -147,7 +173,7 @@ export async function extractJobsFromHtml(
   html: string,
   sourceUrl: string
 ): Promise<ScrapeResult> {
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
   const baseUrl = new URL(sourceUrl).origin;
 
   // Step 1: Check for JSON data sources in the HTML (for JS-rendered pages)
@@ -184,21 +210,20 @@ export async function extractJobsFromHtml(
   // Step 2: Fall back to extracting from HTML content
   const cleanedHtml = cleanHtml(html);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  const response = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4000,
+    system: JOB_SCRAPER_SYSTEM,
     messages: [
-      { role: "system", content: JOB_SCRAPER_SYSTEM },
       {
         role: "user",
         content: `Source URL: ${sourceUrl}\n\nExtract all job listings from this page HTML:\n\n${cleanedHtml}`,
       },
     ],
     temperature: 0.1,
-    response_format: { type: "json_object" },
-    max_tokens: 4000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = extractJson(response.content);
   if (!content) {
     throw new Error("No response from AI");
   }

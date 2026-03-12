@@ -72,3 +72,36 @@ export async function PUT(
 
   return NextResponse.json({ data: updated });
 }
+
+// DELETE /api/talent/candidates/[candidateId]
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ candidateId: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || (session.user.role !== "RECRUITER" && session.user.role !== "ADMIN")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  const { candidateId } = await params;
+
+  const candidate = await prisma.candidateProfile.findUnique({
+    where: { id: candidateId },
+    include: { _count: { select: { requisitions: true } } },
+  });
+
+  if (!candidate) {
+    return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+  }
+
+  // Delete related records first
+  await prisma.reviewComment.deleteMany({
+    where: { candidateRequisition: { candidateId } },
+  });
+  await prisma.candidateRequisition.deleteMany({ where: { candidateId } });
+  await prisma.interview.deleteMany({ where: { candidateId } });
+  await prisma.cvVersion.deleteMany({ where: { candidateId } });
+  await prisma.candidateProfile.delete({ where: { id: candidateId } });
+
+  return NextResponse.json({ message: "Candidate deleted" });
+}

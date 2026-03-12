@@ -2,17 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Plus, Search, Users, FileText, ChevronRight } from "lucide-react";
+import { Building2, Plus, Search, Users, FileText, ChevronRight, CheckCircle2 } from "lucide-react";
 
 interface Client {
   id: string;
   name: string;
   slug: string;
   industry: string | null;
+  website: string | null;
   contactName: string | null;
   contactEmail: string | null;
+  city: string | null;
   status: string;
   createdAt: string;
+  company: { id: string; isVerified: boolean; location: string | null } | null;
   _count: { requisitions: number; clientUsers: number };
 }
 
@@ -105,6 +108,9 @@ export default function ClientsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-[#0A102F] truncate">{client.name}</h3>
+                  {client.company?.isVerified && (
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  )}
                   <span
                     className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                       client.status === "ACTIVE"
@@ -117,6 +123,9 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
                   {client.industry && <span>{client.industry}</span>}
+                  {(client.city || client.company?.location) && (
+                    <span>{client.city || client.company?.location}</span>
+                  )}
                   {client.contactName && <span>{client.contactName}</span>}
                 </div>
               </div>

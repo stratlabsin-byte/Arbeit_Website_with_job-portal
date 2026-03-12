@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { calculateFitScore } from "@/lib/ai/fit-scorer";
 
 // GET /api/talent/requisitions/[requisitionId]/candidates
 export async function GET(
@@ -67,6 +68,39 @@ export async function POST(
       cvVersionId: body.cvVersionId || null,
     },
   });
+
+  // Auto-calculate fit score in background if candidate has a parsed CV
+  (async () => {
+    try {
+      const activeCv = await prisma.cvVersion.findFirst({
+        where: { candidateId: body.candidateId, isActive: true, parseStatus: "PARSED" },
+      });
+      if (!activeCv?.parsedData) return;
+
+      const requisition = await prisma.jobRequisition.findUnique({
+        where: { id: requisitionId },
+      });
+      if (!requisition) return;
+
+      const parsedData = JSON.parse(activeCv.parsedData);
+      const result = await calculateFitScore(parsedData, requisition);
+
+      await prisma.candidateRequisition.update({
+        where: { id: cr.id },
+        data: { fitScore: result.score, cvVersionId: activeCv.id },
+      });
+
+      // Store in CV version fitScores
+      const existingScores = activeCv.fitScores ? JSON.parse(activeCv.fitScores) : {};
+      existingScores[requisitionId] = result.score;
+      await prisma.cvVersion.update({
+        where: { id: activeCv.id },
+        data: { fitScores: JSON.stringify(existingScores) },
+      });
+    } catch (e) {
+      console.error("Auto fit-score failed:", e);
+    }
+  })();
 
   return NextResponse.json({ data: cr }, { status: 201 });
 }

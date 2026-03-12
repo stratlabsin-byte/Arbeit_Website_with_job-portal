@@ -1,4 +1,4 @@
-import { getOpenAI } from "./openai";
+import { getAnthropic, extractJson } from "./anthropic";
 import { FIT_SCORER_SYSTEM } from "./prompts";
 
 export interface FitScoreResult {
@@ -23,7 +23,7 @@ export async function calculateFitScore(
     experienceYears: number;
     currentRole: string | null;
     currentCompany: string | null;
-    experience: { role: string; company: string; duration: string }[];
+    experience: { role: string; company: string; duration: string; description?: string }[];
     education: { degree: string; institution: string }[];
     summary: string;
   },
@@ -39,7 +39,7 @@ export async function calculateFitScore(
     location?: string | null;
   }
 ): Promise<FitScoreResult> {
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
 
   const reqSkills = requisition.requiredSkills
     ? JSON.parse(requisition.requiredSkills)
@@ -48,31 +48,63 @@ export async function calculateFitScore(
     ? JSON.parse(requisition.preferredSkills)
     : [];
 
-  const userPrompt = `
-Candidate Profile:
-${JSON.stringify(parsedCvData, null, 2)}
+  // Build a rich candidate summary for better AI evaluation
+  const candidateSummary = [
+    `Name: ${parsedCvData.currentRole || "Unknown"} at ${parsedCvData.currentCompany || "Unknown"}`,
+    `Total Experience: ${parsedCvData.experienceYears} years`,
+    `Summary: ${parsedCvData.summary || "N/A"}`,
+    `Skills: ${parsedCvData.skills?.join(", ") || "None listed"}`,
+    "",
+    "WORK HISTORY (read carefully to assess actual depth of expertise):",
+    ...(parsedCvData.experience || []).map((exp, i) =>
+      `${i + 1}. ${exp.role} at ${exp.company} (${exp.duration})${exp.description ? `\n   ${exp.description}` : ""}`
+    ),
+    "",
+    "EDUCATION:",
+    ...(parsedCvData.education || []).map((edu) =>
+      `- ${edu.degree} from ${edu.institution}`
+    ),
+  ].join("\n");
 
-Job Requisition:
-- Title: ${requisition.title}
-- Description: ${requisition.polishedJd || requisition.description || "N/A"}
-- Required Skills: ${reqSkills.join(", ") || "Not specified"}
-- Preferred Skills: ${prefSkills.join(", ") || "Not specified"}
-- Experience Required: ${requisition.experienceMin}${requisition.experienceMax ? `-${requisition.experienceMax}` : "+"} years
-- Work Model: ${requisition.workModel}
-- Location: ${requisition.location || "Not specified"}
+  const jdText = requisition.polishedJd || requisition.description || "N/A";
+  // Strip HTML tags from JD for cleaner AI input
+  const cleanJd = jdText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+  const userPrompt = `
+=== CANDIDATE PROFILE ===
+${candidateSummary}
+
+=== JOB REQUISITION ===
+Title: ${requisition.title}
+Experience Required: ${requisition.experienceMin}${requisition.experienceMax ? `-${requisition.experienceMax}` : "+"} years
+Required Skills: ${reqSkills.join(", ") || "Not specified"}
+Preferred Skills: ${prefSkills.join(", ") || "Not specified"}
+Work Model: ${requisition.workModel}
+Location: ${requisition.location || "Not specified"}
+
+Full Job Description:
+${cleanJd.substring(0, 4000)}
+
+IMPORTANT: Score based on DEMONSTRATED expertise from work history, not just keyword presence in skills list. A candidate who USES a tool as an end-user is very different from one who ARCHITECTS/DEVELOPS with it.
 `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-5-20250929",
+    max_tokens: 2048,
+    system: [
+      {
+        type: "text",
+        text: FIT_SCORER_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [
-      { role: "system", content: FIT_SCORER_SYSTEM },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.2,
-    response_format: { type: "json_object" },
+    temperature: 0.1,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = extractJson(response.content);
   if (!content) {
     throw new Error("No response from AI");
   }

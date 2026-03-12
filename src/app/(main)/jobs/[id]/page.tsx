@@ -315,9 +315,21 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Job Description
               </h2>
-              <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-line">
-                {job.description}
-              </div>
+              {(() => {
+                // Strip markdown code fences if present
+                let desc = (job.description || "").replace(/^```(?:html)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+                const isHtml = desc.includes("<") && desc.includes(">");
+                return isHtml ? (
+                  <div
+                    className="prose prose-gray max-w-none text-gray-600 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: desc }}
+                  />
+                ) : (
+                  <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-line">
+                    {desc}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Responsibilities */}

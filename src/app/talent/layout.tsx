@@ -46,9 +46,9 @@ export default function TalentLayout({
     ) {
       // Allow CLIENT_USER and CANDIDATE to pass through to their sub-layouts
       if (
-        (session?.user?.role === "CLIENT_USER" && pathname.startsWith("/talent/client")) ||
-        (session?.user?.role === "CANDIDATE" && pathname.startsWith("/talent/candidate")) ||
-        (session?.user?.role === "JOB_SEEKER" && pathname.startsWith("/talent/candidate"))
+        (session?.user?.role === "CLIENT_USER" && (pathname === "/talent/client" || pathname.startsWith("/talent/client/"))) ||
+        (session?.user?.role === "CANDIDATE" && (pathname === "/talent/candidate" || pathname.startsWith("/talent/candidate/"))) ||
+        (session?.user?.role === "JOB_SEEKER" && (pathname === "/talent/candidate" || pathname.startsWith("/talent/candidate/")))
       ) {
         return;
       }
@@ -64,8 +64,12 @@ export default function TalentLayout({
     );
   }
 
-  // Client and candidate sub-layouts handle their own chrome
-  if (pathname.startsWith("/talent/client") || pathname.startsWith("/talent/candidate")) {
+  // Client portal (/talent/client/*) and candidate portal (/talent/candidate/*) handle their own chrome
+  // Use exact path segments to avoid matching /talent/clients or /talent/candidates (recruiter pages)
+  if (
+    pathname === "/talent/client" || pathname.startsWith("/talent/client/") ||
+    pathname === "/talent/candidate" || pathname.startsWith("/talent/candidate/")
+  ) {
     return <>{children}</>;
   }
 

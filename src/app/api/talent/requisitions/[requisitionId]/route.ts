@@ -27,7 +27,12 @@ export async function GET(
       },
       candidates: {
         include: {
-          candidate: { select: { id: true, name: true, email: true, currentRole: true, currentCompany: true } },
+          candidate: {
+            select: {
+              id: true, name: true, email: true, currentRole: true, currentCompany: true,
+              cvVersions: { where: { isActive: true }, select: { id: true, parseStatus: true }, take: 1 },
+            },
+          },
         },
         orderBy: { submittedAt: "desc" },
       },
@@ -53,6 +58,84 @@ export async function GET(
   return NextResponse.json({ data: requisition });
 }
 
+/**
+ * Map experience years to experience level
+ */
+function getExperienceLevel(min: number): string {
+  if (min <= 1) return "ENTRY";
+  if (min <= 3) return "JUNIOR";
+  if (min <= 5) return "MID";
+  if (min <= 10) return "SENIOR";
+  if (min <= 15) return "LEAD";
+  return "EXECUTIVE";
+}
+
+/**
+ * Generate a unique slug from title
+ */
+function generateSlug(title: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+/**
+ * Auto-create a Job on the job board when a requisition is published
+ */
+async function publishToJobBoard(requisitionId: string) {
+  const requisition = await prisma.jobRequisition.findUnique({
+    where: { id: requisitionId },
+    include: {
+      client: { select: { companyId: true, industry: true, name: true } },
+      job: true,
+    },
+  });
+
+  if (!requisition) return;
+
+  // Already published
+  if (requisition.job) return;
+
+  // Need a linked company to publish on the job board
+  const companyId = requisition.client.companyId;
+  if (!companyId) {
+    // If no company linked, skip auto-publish
+    return;
+  }
+
+  const description = requisition.polishedJd || requisition.rawJd || requisition.description || requisition.title;
+  const location = requisition.location || requisition.city || "India";
+  const industry = requisition.client.industry || "General";
+
+  await prisma.job.create({
+    data: {
+      companyId,
+      requisitionId: requisition.id,
+      title: requisition.title,
+      slug: generateSlug(requisition.title),
+      description,
+      skills: requisition.requiredSkills,
+      jobType: requisition.jobType,
+      experienceLevel: getExperienceLevel(requisition.experienceMin),
+      experienceMin: requisition.experienceMin,
+      experienceMax: requisition.experienceMax,
+      salaryMin: requisition.ctcMin,
+      salaryMax: requisition.ctcMax,
+      salaryCurrency: requisition.ctcCurrency,
+      location,
+      isRemote: requisition.workModel === "REMOTE",
+      industry,
+      department: requisition.department,
+      vacancies: requisition.vacancies,
+      deadline: requisition.deadline,
+      status: "ACTIVE",
+      postedAt: new Date(),
+    },
+  });
+}
+
 // PUT /api/talent/requisitions/[requisitionId]
 export async function PUT(
   req: NextRequest,
@@ -72,6 +155,7 @@ export async function PUT(
   }
 
   const previousStatus = existing.status;
+  const newStatus = body.status ?? existing.status;
 
   const updated = await prisma.jobRequisition.update({
     where: { id: requisitionId },
@@ -95,14 +179,55 @@ export async function PUT(
       preferredSkills: body.preferredSkills ? JSON.stringify(body.preferredSkills) : existing.preferredSkills,
       vacancies: body.vacancies ?? existing.vacancies,
       priority: body.priority ?? existing.priority,
-      status: body.status ?? existing.status,
+      sourceUrl: body.sourceUrl !== undefined ? body.sourceUrl : existing.sourceUrl,
+      status: newStatus,
       deadline: body.deadline ? new Date(body.deadline) : existing.deadline,
-      publishedAt: body.status === "PUBLISHED" && !existing.publishedAt ? new Date() : existing.publishedAt,
+      publishedAt: newStatus === "PUBLISHED" && !existing.publishedAt ? new Date() : existing.publishedAt,
     },
     include: {
       client: { select: { id: true, name: true } },
     },
   });
+
+  // Auto-publish to job board when status changes to PUBLISHED
+  if (newStatus === "PUBLISHED" && previousStatus !== "PUBLISHED") {
+    try {
+      await publishToJobBoard(requisitionId);
+    } catch (error) {
+      console.error("Failed to auto-publish to job board:", error);
+    }
+  }
+
+  // Sync updates to the linked Job on the job board (if one exists)
+  try {
+    const linkedJob = await prisma.job.findFirst({ where: { requisitionId } });
+    if (linkedJob) {
+      const description = updated.polishedJd || updated.rawJd || updated.description || updated.title;
+      const location = updated.location || updated.city || linkedJob.location;
+      await prisma.job.update({
+        where: { id: linkedJob.id },
+        data: {
+          title: updated.title,
+          description,
+          skills: updated.requiredSkills,
+          jobType: updated.jobType,
+          experienceLevel: getExperienceLevel(updated.experienceMin),
+          experienceMin: updated.experienceMin,
+          experienceMax: updated.experienceMax,
+          salaryMin: updated.ctcMin,
+          salaryMax: updated.ctcMax,
+          salaryCurrency: updated.ctcCurrency,
+          location,
+          isRemote: updated.workModel === "REMOTE",
+          department: updated.department,
+          vacancies: updated.vacancies,
+          deadline: updated.deadline,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Failed to sync requisition to job board:", error);
+  }
 
   await logAudit({
     actorId: session.user.id,

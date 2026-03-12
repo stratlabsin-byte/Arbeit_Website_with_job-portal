@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { getOpenAI } from "./openai";
+import { getAnthropic, extractJson } from "./anthropic";
 import { CV_PARSER_SYSTEM } from "./prompts";
 
 export interface ParsedCvData {
@@ -21,11 +21,16 @@ export interface ParsedCvData {
  * Extract text from a PDF file using pdf-parse
  */
 export async function extractTextFromPdf(filePath: string): Promise<string> {
-  const pdfParseModule = await import("pdf-parse");
-  const pdfParse = (pdfParseModule as any).default || pdfParseModule;
-  const buffer = fs.readFileSync(filePath);
-  const data = await pdfParse(buffer);
-  return data.text;
+  // pdf-parse v2 has bundling issues with Next.js webpack.
+  // Use child_process to run extraction in a clean Node context.
+  const { execSync } = require("child_process");
+  const scriptPath = path.join(process.cwd(), "scripts", "extract-pdf.mjs");
+
+  const result = execSync(
+    `node "${scriptPath}" "${filePath}"`,
+    { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024, timeout: 30000 }
+  );
+  return result;
 }
 
 /**
@@ -52,22 +57,31 @@ export async function extractCvText(filePath: string): Promise<string> {
 }
 
 /**
- * Parse CV text using OpenAI to extract structured data
+ * Parse CV text using Claude to extract structured data
  */
 export async function parseCvText(cvText: string): Promise<ParsedCvData> {
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  // Use claude-sonnet for better accuracy on complex CVs, haiku for shorter ones
+  const model = cvText.length > 5000 ? "claude-sonnet-4-5-20250929" : "claude-haiku-4-5-20251001";
+
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 8192,
+    system: [
+      {
+        type: "text",
+        text: CV_PARSER_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [
-      { role: "system", content: CV_PARSER_SYSTEM },
-      { role: "user", content: `Parse this CV:\n\n${cvText.substring(0, 8000)}` },
+      { role: "user", content: `Parse this CV:\n\n${cvText.substring(0, 12000)}` },
     ],
     temperature: 0.1,
-    response_format: { type: "json_object" },
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = extractJson(response.content);
   if (!content) {
     throw new Error("No response from AI");
   }

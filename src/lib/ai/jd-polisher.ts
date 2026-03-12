@@ -1,4 +1,4 @@
-import { getOpenAI } from "./openai";
+import { getAnthropic, extractText } from "./anthropic";
 import { JD_POLISHER_SYSTEM } from "./prompts";
 
 /**
@@ -9,7 +9,7 @@ export async function polishJobDescription(
   title: string,
   context?: { company?: string; location?: string; workModel?: string }
 ): Promise<string> {
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
 
   let userPrompt = `Job Title: ${title}\n`;
   if (context?.company) userPrompt += `Company: ${context.company}\n`;
@@ -17,20 +17,23 @@ export async function polishJobDescription(
   if (context?.workModel) userPrompt += `Work Model: ${context.workModel}\n`;
   userPrompt += `\nRaw Job Description:\n${rawJd}`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  const response = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2000,
+    system: JD_POLISHER_SYSTEM,
     messages: [
-      { role: "system", content: JD_POLISHER_SYSTEM },
       { role: "user", content: userPrompt },
     ],
     temperature: 0.7,
-    max_tokens: 2000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  let content = extractText(response.content);
   if (!content) {
     throw new Error("No response from AI");
   }
+
+  // Strip markdown code fences (```html ... ```) that the AI sometimes adds
+  content = content.replace(/^```(?:html)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
 
   return content;
 }

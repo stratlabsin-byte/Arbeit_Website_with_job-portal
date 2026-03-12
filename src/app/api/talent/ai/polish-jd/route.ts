@@ -37,12 +37,21 @@ export async function POST(req: NextRequest) {
 
     const polishedJd = await polishJobDescription(rawJd, title, context);
 
-    // If requisitionId provided, update the requisition
+    // If requisitionId provided, update the requisition and linked job
     if (requisitionId) {
       await prisma.jobRequisition.update({
         where: { id: requisitionId },
         data: { polishedJd },
       });
+
+      // Sync polished JD to linked Job on the job board
+      const linkedJob = await prisma.job.findFirst({ where: { requisitionId } });
+      if (linkedJob) {
+        await prisma.job.update({
+          where: { id: linkedJob.id },
+          data: { description: polishedJd },
+        });
+      }
     }
 
     return NextResponse.json({ data: { polishedJd } });

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { cvVersionId } = await req.json();
+  const { cvVersionId, forceUpdate } = await req.json();
   if (!cvVersionId) {
     return NextResponse.json({ error: "cvVersionId is required" }, { status: 400 });
   }
@@ -53,16 +53,28 @@ export async function POST(req: NextRequest) {
 
     if (candidate) {
       const updates: Record<string, any> = {};
-      if (!candidate.email && parsedData.email) updates.email = parsedData.email;
-      if (!candidate.phone && parsedData.phone) updates.phone = parsedData.phone;
-      if (!candidate.location && parsedData.location) updates.location = parsedData.location;
-      if (!candidate.currentRole && parsedData.currentRole) updates.currentRole = parsedData.currentRole;
-      if (!candidate.currentCompany && parsedData.currentCompany) updates.currentCompany = parsedData.currentCompany;
-      if (candidate.experienceYears === 0 && parsedData.experienceYears > 0) {
-        updates.experienceYears = parsedData.experienceYears;
-      }
-      if (parsedData.skills.length > 0 && !candidate.skills) {
-        updates.skills = JSON.stringify(parsedData.skills);
+      if (forceUpdate) {
+        // On re-parse, overwrite all fields with fresh parsed data
+        if (parsedData.email) updates.email = parsedData.email;
+        if (parsedData.phone) updates.phone = parsedData.phone;
+        if (parsedData.location) updates.location = parsedData.location;
+        if (parsedData.currentRole) updates.currentRole = parsedData.currentRole;
+        if (parsedData.currentCompany) updates.currentCompany = parsedData.currentCompany;
+        if (parsedData.experienceYears > 0) updates.experienceYears = parsedData.experienceYears;
+        if (parsedData.skills.length > 0) updates.skills = JSON.stringify(parsedData.skills);
+      } else {
+        // First-time parse: only fill empty fields
+        if (!candidate.email && parsedData.email) updates.email = parsedData.email;
+        if (!candidate.phone && parsedData.phone) updates.phone = parsedData.phone;
+        if (!candidate.location && parsedData.location) updates.location = parsedData.location;
+        if (!candidate.currentRole && parsedData.currentRole) updates.currentRole = parsedData.currentRole;
+        if (!candidate.currentCompany && parsedData.currentCompany) updates.currentCompany = parsedData.currentCompany;
+        if (candidate.experienceYears === 0 && parsedData.experienceYears > 0) {
+          updates.experienceYears = parsedData.experienceYears;
+        }
+        if (parsedData.skills.length > 0 && !candidate.skills) {
+          updates.skills = JSON.stringify(parsedData.skills);
+        }
       }
 
       if (Object.keys(updates).length > 0) {

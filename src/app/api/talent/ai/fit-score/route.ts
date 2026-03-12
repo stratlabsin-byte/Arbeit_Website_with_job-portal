@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateFitScore } from "@/lib/ai/fit-scorer";
+import { processCv } from "@/lib/ai/cv-parser";
+import path from "path";
 
 // POST /api/talent/ai/fit-score - Calculate fit score for candidate vs requisition
 export async function POST(req: NextRequest) {
@@ -32,11 +34,59 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // If CV exists but parsedData is missing, auto-parse it now
+    if (cvVersion && !cvVersion.parsedData && cvVersion.fileUrl) {
+      try {
+        const filePath = path.join(process.cwd(), "public", cvVersion.fileUrl);
+        const { originalText, redactedText, parsedData: freshParsed } = await processCv(filePath);
+
+        await prisma.cvVersion.update({
+          where: { id: cvVersion.id },
+          data: {
+            parsedData: JSON.stringify(freshParsed),
+            cvTextOriginal: originalText,
+            cvTextRedacted: redactedText,
+            parseStatus: "PARSED",
+          },
+        });
+        cvVersion.parsedData = JSON.stringify(freshParsed);
+      } catch (e) {
+        console.error("Auto-parse during fit-score failed:", e);
+      }
+    }
+
     if (!cvVersion?.parsedData) {
-      return NextResponse.json(
-        { error: "No parsed CV data available. Parse the CV first." },
-        { status: 400 }
-      );
+      // Also try any active CV even without PARSED status
+      if (!cvVersion) {
+        cvVersion = await prisma.cvVersion.findFirst({
+          where: { candidateId, isActive: true },
+        });
+        if (cvVersion && !cvVersion.parsedData && cvVersion.fileUrl) {
+          try {
+            const filePath = path.join(process.cwd(), "public", cvVersion.fileUrl);
+            const { originalText, redactedText, parsedData: freshParsed } = await processCv(filePath);
+            await prisma.cvVersion.update({
+              where: { id: cvVersion.id },
+              data: {
+                parsedData: JSON.stringify(freshParsed),
+                cvTextOriginal: originalText,
+                cvTextRedacted: redactedText,
+                parseStatus: "PARSED",
+              },
+            });
+            cvVersion.parsedData = JSON.stringify(freshParsed);
+          } catch (e) {
+            console.error("Auto-parse during fit-score failed:", e);
+          }
+        }
+      }
+
+      if (!cvVersion?.parsedData) {
+        return NextResponse.json(
+          { error: "No parsed CV data available. Please upload a CV first." },
+          { status: 400 }
+        );
+      }
     }
 
     const parsedData = JSON.parse(cvVersion.parsedData);

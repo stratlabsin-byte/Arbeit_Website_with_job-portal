@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { processCv } from "@/lib/ai/cv-parser";
 
 // POST /api/talent/upload/cv - Upload a CV file
 export async function POST(req: NextRequest) {
@@ -80,6 +81,56 @@ export async function POST(req: NextRequest) {
       parseStatus: "PENDING",
     },
   });
+
+  // Auto-parse CV in background
+  (async () => {
+    try {
+      await prisma.cvVersion.update({
+        where: { id: cvVersion.id },
+        data: { parseStatus: "PARSING" },
+      });
+
+      const { originalText, redactedText, parsedData } = await processCv(filePath);
+
+      await prisma.cvVersion.update({
+        where: { id: cvVersion.id },
+        data: {
+          parsedData: JSON.stringify(parsedData),
+          cvTextOriginal: originalText,
+          cvTextRedacted: redactedText,
+          parseStatus: "PARSED",
+        },
+      });
+
+      // Update candidate profile with parsed info (only empty fields)
+      const candidate = await prisma.candidateProfile.findUnique({
+        where: { id: candidateId },
+      });
+      if (candidate) {
+        const updates: Record<string, any> = {};
+        if (!candidate.email && parsedData.email) updates.email = parsedData.email;
+        if (!candidate.phone && parsedData.phone) updates.phone = parsedData.phone;
+        if (!candidate.location && parsedData.location) updates.location = parsedData.location;
+        if (!candidate.currentRole && parsedData.currentRole) updates.currentRole = parsedData.currentRole;
+        if (!candidate.currentCompany && parsedData.currentCompany) updates.currentCompany = parsedData.currentCompany;
+        if (candidate.experienceYears === 0 && parsedData.experienceYears > 0) {
+          updates.experienceYears = parsedData.experienceYears;
+        }
+        if (parsedData.skills.length > 0 && !candidate.skills) {
+          updates.skills = JSON.stringify(parsedData.skills);
+        }
+        if (Object.keys(updates).length > 0) {
+          await prisma.candidateProfile.update({ where: { id: candidateId }, data: updates });
+        }
+      }
+    } catch (e) {
+      console.error("Auto CV parse failed:", e);
+      await prisma.cvVersion.update({
+        where: { id: cvVersion.id },
+        data: { parseStatus: "FAILED" },
+      }).catch(() => {});
+    }
+  })();
 
   return NextResponse.json({ data: cvVersion }, { status: 201 });
 }
