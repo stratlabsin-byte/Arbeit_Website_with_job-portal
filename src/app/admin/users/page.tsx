@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import EmptyState from "@/components/dashboard/EmptyState";
 import {
   Users,
   Search,
@@ -320,10 +321,11 @@ export default function AdminUsersPage() {
             <p className="text-sm text-gray-500">Loading users...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="p-12 text-center">
-            <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No users found.</p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="No users found"
+            description="There are no users matching your filters. Try adjusting your search criteria."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

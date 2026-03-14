@@ -29,6 +29,11 @@ const config: Config = {
           600: "#16a34a",
           700: "#15803d",
         },
+        navy: {
+          700: "#1C264F",
+          800: "#131B3F",
+          900: "#0A102F",
+        },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

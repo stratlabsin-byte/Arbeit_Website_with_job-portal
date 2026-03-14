@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import EmptyState from "@/components/dashboard/EmptyState";
 import {
   Briefcase,
   Search,
@@ -368,10 +369,11 @@ export default function AdminJobsPage() {
             <span className="ml-2 text-sm text-gray-500">Loading jobs...</span>
           </div>
         ) : jobs.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No jobs found.</p>
-          </div>
+          <EmptyState
+            icon={Briefcase}
+            title="No jobs found"
+            description="There are no job listings matching your filters. Try adjusting your search or create a new job."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
