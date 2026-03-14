@@ -68,7 +68,7 @@ export default function DashboardLayout({
 
   const isActive = (href: string) => {
     // For root dashboard path, match exactly
-    const basePaths = ["/admin", "/portal/client", "/portal/candidate"];
+    const basePaths = ["/admin", "/portal/client", "/portal/candidate", "/employer/dashboard"];
     if (basePaths.includes(href)) return pathname === href;
     return pathname.startsWith(href);
   };
